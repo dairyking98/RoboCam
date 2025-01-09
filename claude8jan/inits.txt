@@ -1,0 +1,78 @@
+# hardware/__init__.py
+"""
+Hardware control module for microscope control application.
+Contains classes for controlling GCode-based motion and camera systems.
+"""
+
+from .gcode import GCode
+from .camera import Camera, PiCamera
+
+__all__ = ['GCode', 'Camera', 'PiCamera']
+
+# gui/__init__.py
+"""
+GUI module for microscope control application.
+Contains classes for all graphical user interface components.
+"""
+
+from .main_gui import MainGUI
+from .gcode_gui import GCodeGUI
+from .camera_gui import CameraGUI
+from .experiment_gui import ExperimentGUI
+from .pathfinder_gui import PathfinderGUI
+
+__all__ = ['MainGUI', 'GCodeGUI', 'CameraGUI', 'ExperimentGUI', 'PathfinderGUI']
+
+# utils/__init__.py
+"""
+Utility functions for microscope control application.
+Contains helper functions for path generation and data processing.
+"""
+
+from .path_generator import (
+    generate_well_plate_path,
+    calculate_travel_time,
+    validate_corner_positions,
+    generate_preview
+)
+
+__all__ = [
+    'generate_well_plate_path',
+    'calculate_travel_time',
+    'validate_corner_positions',
+    'generate_preview'
+]
+
+# config/__init__.py
+"""
+Configuration module for microscope control application.
+Contains all application settings and constants.
+"""
+
+from .settings import (
+    GCODE_DEFAULT_SETTINGS,
+    CAMERA_SETTINGS,
+    OVERLAY_SETTINGS,
+    WELL_PLATE_SETTINGS,
+    FILE_SETTINGS,
+    GUI_SETTINGS,
+    EXPERIMENT_SETTINGS,
+    ERROR_MESSAGES,
+    SUCCESS_MESSAGES,
+    DEBUG_SETTINGS,
+    HARDWARE_LIMITS
+)
+
+__all__ = [
+    'GCODE_DEFAULT_SETTINGS',
+    'CAMERA_SETTINGS',
+    'OVERLAY_SETTINGS',
+    'WELL_PLATE_SETTINGS',
+    'FILE_SETTINGS',
+    'GUI_SETTINGS',
+    'EXPERIMENT_SETTINGS',
+    'ERROR_MESSAGES',
+    'SUCCESS_MESSAGES',
+    'DEBUG_SETTINGS',
+    'HARDWARE_LIMITS'
+]
