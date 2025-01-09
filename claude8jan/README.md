@@ -1,10 +1,3 @@
-# requirements.txt
-opencv-python>=4.8.0
-pyserial>=3.5
-picamera2>=0.3.12
-numpy>=1.24.0
-tk>=0.1.0
-
 # README.md
 # Microscope Control Application
 
