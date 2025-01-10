@@ -17,41 +17,35 @@ from ..hardware.camera import Camera
 class CameraGUI:
     """GUI class for camera preview and control."""
     
-    def __init__(self, root: tk.Toplevel):
-        """
-        Initialize the camera control interface.
-        
-        Args:
-            root: Parent window
-        """
+    def __init__(self, root: tk.Toplevel, camera: Camera):
         self.logger = logging.getLogger(__name__)
         self.root = root
-        
-        # Set window properties
         self.root.title("Camera Preview")
         self.root.geometry(CAMERA_SETTINGS['DEFAULT_WINDOW_SIZE'])
-        
-        # Initialize variables
-        self.camera = None
+        self.camera = camera
         self.running = False
         self.preview_size = (640, 480)
-        
-        # Initialize camera settings
         self.rotation = tk.IntVar(value=CAMERA_SETTINGS['ROTATION'])
         self.zoom = tk.DoubleVar(value=CAMERA_SETTINGS['ZOOM'])
-        
-        # Initialize overlay settings
         self.crosshair_enabled = tk.BooleanVar(value=False)
         self.circle_enabled = tk.BooleanVar(value=False)
         self.overlay_color = tk.StringVar(value=CAMERA_SETTINGS['DEFAULT_OVERLAY_COLOR'])
         self.overlay_size = tk.IntVar(value=CAMERA_SETTINGS['DEFAULT_CIRCLE_SIZE'])
         self.overlay_thickness = tk.IntVar(value=CAMERA_SETTINGS['DEFAULT_OVERLAY_THICKNESS'])
-        
-        # Create GUI
         self.create_gui()
-        
-        # Initialize camera and start preview
         self.initialize_camera()
+
+    def initialize_camera(self):
+        """Initialize the camera and start preview."""
+        try:
+            if not self.camera.is_open():
+                self.camera = Camera()
+            self.running = True
+            self.logger.info("Camera initialized successfully")
+            self.update_preview()
+        except Exception as e:
+            self.logger.error(f"Error initializing camera: {e}")
+            self.show_error("Failed to initialize camera")
         
     def create_gui(self):
         """Create the GUI elements."""
@@ -159,16 +153,6 @@ class CameraGUI:
         )
         thickness_scale.pack(fill=tk.X)
         
-    def initialize_camera(self):
-        """Initialize the camera and start preview."""
-        try:
-            self.camera = Camera()
-            self.running = True
-            self.update_preview()
-        except Exception as e:
-            self.logger.error(f"Error initializing camera: {e}")
-            self.show_error("Failed to initialize camera")
-            
     def update_preview(self):
         """Update the preview image."""
         if self.running and self.camera:
@@ -198,6 +182,10 @@ class CameraGUI:
                 self.logger.error(f"Error updating preview: {e}")
                 self.running = False
                 self.show_error("Preview error")
+                
+    def stop_preview(self):
+        """Stop the camera preview."""
+        self.running = False
                 
     def apply_camera_transformations(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -283,14 +271,36 @@ class CameraGUI:
     def show_error(self, message: str):
         """Show error message to user."""
         tk.messagebox.showerror("Camera Error", message)
-        
+
     def stop(self):
         """Stop the camera preview and release resources."""
         self.running = False
-        if self.camera:
-            self.camera.stop()
+        if hasattr(self, 'camera') and self.camera:
             self.camera = None
+            
+    def close_window(self, window_type: str):
+        """
+        Close a specific window.
+        
+        Args:
+            window_type: Type of window to close
+        """
+        if self.windows[window_type]:
+            try:
+                # Cleanup specific window types
+                if window_type == 'camera' and self.gui_instances['camera']:
+                    self.gui_instances['camera'].stop_preview()
+                    self.update_status('camera', 'Not Running')
+                
+                # Destroy window and clear references
+                self.windows[window_type].destroy()
+                self.windows[window_type] = None
+                self.gui_instances[window_type] = None
+                self.checkbox_vars[window_type].set(False)
+            
+            except Exception as e:
+                self.logger.error(f"Error closing {window_type} window: {e}")
 
     def __del__(self):
         """Ensure camera is properly stopped on deletion."""
-        self.stop()
+        self.logger.info("CameraGUI object is being deleted")

@@ -8,8 +8,9 @@ from tkinter import ttk, messagebox
 import logging
 from typing import Optional, Dict, List, Any
 import numpy as np
+import json
 
-from ..config import WELL_PLATE
+from microscope.config import WELL_PLATE
 
 class PathfinderGUI:
     """GUI class for well plate navigation and path generation."""
@@ -110,6 +111,15 @@ class PathfinderGUI:
         )
         self.clear_btn.grid(row=0, column=1, padx=5, pady=5)
         
+        # Save path button
+        self.save_btn = ttk.Button(
+            control_frame,
+            text="Save Path",
+            command=self.save_path,
+            state=tk.DISABLED
+        )
+        self.save_btn.grid(row=0, column=2, padx=5, pady=5)
+        
         # Add options for scanning pattern
         ttk.Label(control_frame, text="Scan Pattern:").grid(row=1, column=0, padx=5, pady=2)
         self.pattern_var = tk.StringVar(value="snake")
@@ -197,11 +207,37 @@ class PathfinderGUI:
             # Update display
             self.update_path_display()
             self.clear_btn.config(state=tk.NORMAL)
+            self.save_btn.config(state=tk.NORMAL)
             self.status_var.set("Path generated")
             
         except Exception as e:
             self.logger.error(f"Error generating path: {e}")
             messagebox.showerror("Error", "Failed to generate path")
+            
+    def clear_path(self):
+        """Clear the generated path."""
+        self.path_points = []
+        self.path_text.config(state=tk.NORMAL)
+        self.path_text.delete(1.0, tk.END)
+        self.path_text.config(state=tk.DISABLED)
+        self.clear_btn.config(state=tk.DISABLED)
+        self.save_btn.config(state=tk.DISABLED)
+        self.status_var.set("Path cleared")
+        
+    def save_path(self):
+        """Save the generated path to a JSON file."""
+        try:
+            file_path = tk.filedialog.asksaveasfilename(
+                defaultextension=".json",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            if file_path:
+                with open(file_path, 'w') as file:
+                    json.dump(self.path_points, file, indent=4)
+                self.status_var.set(f"Path saved to {file_path}")
+        except Exception as e:
+            self.logger.error(f"Error saving path: {e}")
+            messagebox.showerror("Error", "Failed to save path")
             
     def generate_snake_path(self, rows: int, cols: int, x_step: float, y_step: float):
         """Generate snake pattern path."""
@@ -222,7 +258,7 @@ class PathfinderGUI:
                     'Z': z,
                     'well': well_id
                 })
-                
+
     def generate_raster_path(self, rows: int, cols: int, x_step: float, y_step: float):
         """Generate raster pattern path."""
         for row in range(rows):
@@ -239,7 +275,7 @@ class PathfinderGUI:
                     'Z': z,
                     'well': well_id
                 })
-                
+
     def update_path_display(self):
         """Update the path display text widget."""
         self.path_text.config(state=tk.NORMAL)
@@ -252,71 +288,3 @@ class PathfinderGUI:
             )
             
         self.path_text.config(state=tk.DISABLED)
-        
-    def clear_path(self):
-        """Clear the generated path."""
-        self.path_points = []
-        self.path_text.config(state=tk.NORMAL)
-        self.path_text.delete(1.0, tk.END)
-        self.path_text.config(state=tk.DISABLED)
-        self.clear_btn.config(state=tk.DISABLED)
-        self.status_var.set("Path cleared")
-        
-    def validate_corners(self) -> bool:
-        """
-        Validate captured corner positions.
-        
-        Returns:
-            bool: True if corners are valid, False otherwise
-        """
-        try:
-            # Check if all corners are captured
-            if not all(pos is not None for pos in self.corners.values()):
-                return False
-                
-            # Verify A1-A8 and F1-F8 distances are similar
-            a_dist = np.sqrt(
-                (self.corners['A8']['X'] - self.corners['A1']['X'])**2 +
-                (self.corners['A8']['Y'] - self.corners['A1']['Y'])**2
-            )
-            f_dist = np.sqrt(
-                (self.corners['F8']['X'] - self.corners['F1']['X'])**2 +
-                (self.corners['F8']['Y'] - self.corners['F1']['Y'])**2
-            )
-            
-            if abs(a_dist - f_dist) > 1.0:  # 1mm tolerance
-                raise ValueError("Plate appears to be skewed")
-                
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Error validating corners: {e}")
-            return False
-            
-    def export_path(self) -> List[Dict[str, float]]:
-        """
-        Export the generated path for use in experiments.
-        
-        Returns:
-            List of path points with coordinates and well IDs
-        """
-        return self.path_points.copy()
-
-    def get_well_position(self, well_id: str) -> Optional[Dict[str, float]]:
-        """
-        Get the position of a specific well by ID.
-        
-        Args:
-            well_id: Well identifier (e.g., 'A1', 'F8')
-            
-        Returns:
-            Dictionary with well position or None if not found
-        """
-        for point in self.path_points:
-            if point['well'] == well_id:
-                return {
-                    'X': point['X'],
-                    'Y': point['Y'],
-                    'Z': point['Z']
-                }
-        return None

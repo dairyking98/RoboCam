@@ -14,6 +14,7 @@ from .gcode_gui import GCodeGUI
 from .camera_gui import CameraGUI
 from .experiment_gui import ExperimentGUI
 from .pathfinder_gui import PathfinderGUI
+from ..hardware.camera import Camera
 
 class App:
     """Main application class that manages all GUI windows and components."""
@@ -50,8 +51,18 @@ class App:
             'experiment': None
         }
         
+        # Add debug variables
+        self.experiment_debug_var = tk.BooleanVar()
+        self.gcode_debug_var = tk.BooleanVar()
+        
+        
+        self.gcode.set_debug(self.gcode_debug_var.get())
+        
         # Create main GUI elements
         self.create_main_gui()
+        
+        # Initialize camera
+        self.camera = Camera()
         
         # Bind window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -117,13 +128,54 @@ class App:
         
         # Add status labels
         self.status_labels = {
-            'gcode': ttk.Label(status_frame, text="GCode: Not Connected"),
+            'gcode': ttk.Label(status_frame, text="3D Printer: Not Connected"),
             'camera': ttk.Label(status_frame, text="Camera: Not Running"),
             'experiment': ttk.Label(status_frame, text="Experiment: Idle")
         }
         
         for i, (key, label) in enumerate(self.status_labels.items()):
             label.grid(row=i, column=0, sticky=tk.W, pady=2)
+            
+        # Update 3D printer status
+        if self.gcode.is_connected():
+            self.update_status('gcode', 'Connected')
+        else:
+            self.update_status('gcode', 'Not Connected')
+            
+        # Create debug frame
+        debug_frame = ttk.LabelFrame(self.main_frame, text="Debug", padding="5")
+        debug_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        
+        # Create Experiment debug checkbox
+        self.experiment_debug_var = tk.BooleanVar()
+        ttk.Checkbutton(
+            debug_frame,
+            text="Enable Experiment Debug Mode",
+            variable=self.experiment_debug_var,
+            command=self.toggle_experiment_debug
+        ).grid(row=0, column=0, sticky=tk.W, pady=2)
+
+        # Create GCode debug checkbox
+        self.gcode_debug_var = tk.BooleanVar()
+        ttk.Checkbutton(
+            debug_frame,
+            text="Enable GCode Debug Mode",
+            variable=self.gcode_debug_var,
+            command=self.toggle_gcode_debug
+        ).grid(row=1, column=0, sticky=tk.W, pady=2)
+        
+    def toggle_experiment_debug(self):
+        """Toggle debug mode for the experiment."""
+        debug_state = self.experiment_debug_var.get()
+        if self.gui_instances['experiment']:
+            self.gui_instances['experiment'].experiment.set_debug(debug_state)
+        print(f"Experiment Debug mode {'enabled' if debug_state else 'disabled'}")
+
+    def toggle_gcode_debug(self):
+        """Toggle debug mode for the GCode."""
+        debug_state = self.gcode_debug_var.get()
+        self.gcode.set_debug(debug_state)
+        print(f"GCode Debug mode {'enabled' if debug_state else 'disabled'}")
     
     def toggle_window(self, window_type: str):
         """
@@ -157,11 +209,11 @@ class App:
                         self.windows[window_type],
                         self.gcode
                     )
-                    self.update_status('gcode', 'Connected')
                     
                 elif window_type == 'camera':
                     self.gui_instances['camera'] = CameraGUI(
-                        self.windows[window_type]
+                        self.windows[window_type],
+                        self.camera
                     )
                     self.update_status('camera', 'Running')
                     
@@ -197,9 +249,6 @@ class App:
                 if window_type == 'camera' and self.gui_instances['camera']:
                     self.gui_instances['camera'].stop()
                     self.update_status('camera', 'Not Running')
-                    
-                elif window_type == 'gcode':
-                    self.update_status('gcode', 'Not Connected')
                 
                 # Destroy window and clear references
                 self.windows[window_type].destroy()
@@ -209,28 +258,30 @@ class App:
             
             except Exception as e:
                 self.logger.error(f"Error closing {window_type} window: {e}")
-    
+
     def toggle_experiment(self):
-        """Toggle the experiment control GUI."""
         try:
             if self.checkbox_vars['experiment'].get():
                 if not self.gui_instances['experiment']:
                     self.gui_instances['experiment'] = ExperimentGUI(
                         self.root,
-                        self.checkbox_vars['experiment']
+                        self.checkbox_vars['experiment'],
+                        self.camera,
+                        self.gcode
                     )
+                # Set debug state
+                self.gui_instances['experiment'].set_debug(self.experiment_debug_var.get())
                 self.gui_instances['experiment'].start()
                 self.update_status('experiment', 'Running')
             else:
                 if self.gui_instances['experiment']:
                     self.gui_instances['experiment'].stop()
                     self.update_status('experiment', 'Idle')
-        
         except Exception as e:
             self.logger.error(f"Error toggling experiment GUI: {e}")
             self.checkbox_vars['experiment'].set(False)
             self.update_status('experiment', 'Error')
-    
+
     def update_status(self, component: str, status: str):
         """
         Update the status display for a component.
@@ -240,8 +291,9 @@ class App:
             status: Status message to display
         """
         if component in self.status_labels:
+            display_name = "3D Printer" if component == "gcode" else component.title()
             self.status_labels[component].config(
-                text=f"{component.title()}: {status}"
+                text=f"{display_name}: {status}"
             )
     
     def on_closing(self):
@@ -253,6 +305,10 @@ class App:
             for window_type in self.windows:
                 if self.windows[window_type]:
                     self.close_window(window_type)
+            
+            # Stop the camera
+            if self.camera:
+                self.camera.stop()
             
             # Cleanup hardware
             if self.gcode:
